@@ -8,6 +8,7 @@ use PHPPM\Bootstraps\BootstrapInterface;
 use PHPPM\Bootstraps\HooksInterface;
 use PHPPM\Bootstraps\RequestClassProviderInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use PHPPM\Bridges\BridgeInterface;
 use Slim\Http\Response;
 use Slim\Http\Request;
@@ -37,7 +38,6 @@ class Slim implements BridgeInterface
 
     public function bootstrap($appBootstrap, $appenv, $debug)
     {
-        
         $this->bootstrap = new SlimBootstrap();
         $this->bootstrap->initialize($appenv, $debug);
         $this->app = $this->bootstrap->getApp();
@@ -52,6 +52,29 @@ class Slim implements BridgeInterface
      */
     protected function mapRequest(ServerRequestInterface $psrRequest)
     {
+        $_COOKIE = [];
+
+        foreach ($psrRequest->getHeader('Cookie') as $cookieHeader) {
+            $cookies = explode(';', $cookieHeader);
+            foreach ($cookies as $cookie) {
+                if (strpos($cookie, '=') == false) {
+                    continue;
+                }
+                list($name, $value) = explode('=', trim($cookie));
+                $_COOKIE[$name] = $value;
+                if ($name === session_name()) {
+                    session_id($value);
+                }
+            }
+        }
+
+        session_start();
+
+        
+        ob_start();
+        var_dump($_SESSION);
+        file_put_contents('php://stderr', ob_get_clean() . PHP_EOL, FILE_APPEND);
+
         return new Request(
             $psrRequest->getMethod(),
             Uri::createFromString($psrRequest->getUri()),
@@ -63,6 +86,54 @@ class Slim implements BridgeInterface
         );
     }
 
+    protected function mapResponse(ResponseInterface $slimResponse)
+    {
+        $nativeHeaders = [];
+        foreach (headers_list() as $header) {
+            if (false !== $pos = strpos($header, ':')) {
+                $name = substr($header, 0, $pos);
+                $value = trim(substr($header, $pos + 1));
+                if (isset($nativeHeaders[$name])) {
+                    if (!is_array($nativeHeaders[$name])) {
+                        $nativeHeaders[$name] = [$nativeHeaders[$name]];
+                    }
+                    $nativeHeaders[$name][] = $value;
+                } else {
+                    $nativeHeaders[$name] = $value;
+                }
+            }
+        }
+
+        if (PHP_SESSION_ACTIVE === session_status()) {
+            // make sure open session are saved to the storage
+            // in case the framework hasn't closed it correctly.
+            session_write_close();
+        }
+        
+        // reset session_id in any case to something not valid, for next request
+        session_id('');
+                
+        // reset $_SESSION
+        session_unset();
+        unset($_SESSION);
+
+        header_remove();
+
+        $headers = array_merge($nativeHeaders, $slimResponse->getHeaders());
+
+        ob_start();
+        var_dump($_SESSION);
+        file_put_contents('php://stderr', ob_get_clean() . PHP_EOL, FILE_APPEND);
+
+        return new Response(
+            $slimResponse->getStatusCode(),
+            new Headers($headers),
+            $slimResponse->getBody()
+        );
+
+
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -72,6 +143,8 @@ class Slim implements BridgeInterface
 
         $this->bootstrap->resetDefaultServices($slimRequest);
 
-        return $this->app->process($slimRequest, new Response());
+        $slimResponse = $this->app->process($slimRequest, new Response());
+
+        return $this->mapResponse($slimResponse);
     }
 }
