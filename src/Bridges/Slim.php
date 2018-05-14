@@ -14,27 +14,21 @@ use Slim\Http\Response;
 use Slim\Http\Request;
 use Slim\Http\Uri;
 use Slim\Http\Headers;
-use Slim\Http\Environment;
 use adrianfalleiro\PHPPM\Slim\Bootstraps\Slim as SlimBootstrap;
 
 class Slim implements BridgeInterface
 {
     /**
-     * An application implementing the HttpKernelInterface
+     * Slim application instance
      *
-     * @var \Symfony\Component\HttpKernel\HttpKernelInterface
+     * @var \Slim\App
      */
-    protected $application;
+    protected $app;
 
     /**
      * @var BootstrapInterface
      */
     protected $bootstrap;
-
-    /**
-     * @var string[]
-     */
-    protected $tempFiles = [];
 
     public function bootstrap($appBootstrap, $appenv, $debug)
     {
@@ -69,11 +63,6 @@ class Slim implements BridgeInterface
         }
 
         session_start();
-
-        
-        ob_start();
-        var_dump($_SESSION);
-        file_put_contents('php://stderr', ob_get_clean() . PHP_EOL, FILE_APPEND);
 
         return new Request(
             $psrRequest->getMethod(),
@@ -120,10 +109,6 @@ class Slim implements BridgeInterface
         header_remove();
 
         $headers = array_merge($nativeHeaders, $slimResponse->getHeaders());
-
-        ob_start();
-        var_dump($_SESSION);
-        file_put_contents('php://stderr', ob_get_clean() . PHP_EOL, FILE_APPEND);
 
         return new Response(
             $slimResponse->getStatusCode(),

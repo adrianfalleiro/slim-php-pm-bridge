@@ -75,18 +75,18 @@ class Slim implements ApplicationEnvironmentAwareInterface
         unset($container['environment']);
 
         // Reset app request instance
-        $container['request'] = function($c) use ($slimRequest) {
+        $container['request'] = function ($c) use ($slimRequest) {
             return $slimRequest;
         };
 
         // Reset app environment instance
-        $container['environment'] = function($c) use ($slimRequest) {
+        $container['environment'] = function ($c) use ($slimRequest) {
             return new Environment($slimRequest->getServerParams());
         };
 
         // Reset cached route args
         $routes = $container['router']->getRoutes();
-        foreach($routes as $route) {
+        foreach ($routes as $route) {
             $route->setArguments([]);
         } 
     }
